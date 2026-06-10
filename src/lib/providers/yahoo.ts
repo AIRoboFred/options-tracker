@@ -1,5 +1,5 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const yahooFinance = require('yahoo-finance2').default as typeof import('yahoo-finance2').default
+import YahooFinance from 'yahoo-finance2'
+const yahooFinance = new YahooFinance()
 import type { DataProvider, StockQuote, OptionQuote, OptionRequest } from './types'
 
 export const yahooProvider: DataProvider = {
