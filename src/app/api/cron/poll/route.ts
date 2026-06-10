@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSettings, recordPollSuccess, recordPollError } from '@/lib/settings'
 import { getProvider } from '@/lib/providers'
 import { ensureHeaders, appendPollRow } from '@/lib/google-sheets'
-import { kv } from '@vercel/kv'
+import { redis as kv } from '@/lib/redis'
 
 // Vercel Cron calls this every minute. We check internally whether it's time to poll.
 export async function GET(req: Request) {

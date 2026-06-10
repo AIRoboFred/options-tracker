@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv'
+import { redis as kv } from '@/lib/redis'
 import type { ProviderName } from './providers'
 
 export interface OptionConfig {

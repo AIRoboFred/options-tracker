@@ -1,5 +1,5 @@
 import { google } from 'googleapis'
-import { kv } from '@vercel/kv'
+import { redis as kv } from '@/lib/redis'
 
 const REFRESH_TOKEN_KEY = 'google:refresh_token'
 
