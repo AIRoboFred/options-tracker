@@ -3,7 +3,21 @@ import { getAuthedClient } from './google-auth'
 import type { StockQuote, OptionQuote } from './providers'
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID!
-const SHEET_NAME = 'Data'
+
+// The tab/sheet name within the spreadsheet. We resolve the first tab's actual
+// title at runtime (default Google sheets are named "Sheet1", not "Data"), so
+// the app works no matter what the user's tab is called. Cached after first lookup.
+let cachedSheetName: string | null = null
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getSheetName(sheets: any): Promise<string> {
+  if (cachedSheetName) return cachedSheetName
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID })
+  const title = meta.data.sheets?.[0]?.properties?.title
+  if (!title) throw new Error('No sheets/tabs found in the spreadsheet')
+  cachedSheetName = title
+  return title
+}
 
 const HEADERS = [
   'timestamp',
@@ -27,16 +41,17 @@ function optionRow(o: OptionQuote): (string | number | null)[] {
 export async function ensureHeaders(): Promise<void> {
   const auth = await getAuthedClient()
   const sheets = google.sheets({ version: 'v4', auth })
+  const sheetName = await getSheetName(sheets)
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${SHEET_NAME}!A1:A1`,
+    range: `${sheetName}!A1:A1`,
   })
 
   if (!res.data.values?.[0]?.[0]) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A1`,
+      range: `${sheetName}!A1`,
       valueInputOption: 'RAW',
       requestBody: { values: [HEADERS] },
     })
@@ -46,6 +61,7 @@ export async function ensureHeaders(): Promise<void> {
 export async function appendPollRow(stock: StockQuote, options: OptionQuote[]): Promise<void> {
   const auth = await getAuthedClient()
   const sheets = google.sheets({ version: 'v4', auth })
+  const sheetName = await getSheetName(sheets)
 
   const row: (string | number | null)[] = [
     new Date().toISOString(),
@@ -56,7 +72,7 @@ export async function appendPollRow(stock: StockQuote, options: OptionQuote[]): 
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${SHEET_NAME}!A1`,
+    range: `${sheetName}!A1`,
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [row] },

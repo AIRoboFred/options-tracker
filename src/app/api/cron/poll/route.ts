@@ -25,13 +25,8 @@ export async function GET(req: Request) {
   }
 
   // Only poll during market hours (9:30–16:00 ET, Mon–Fri)
-  const etOffset = isDST(now) ? -4 : -5
-  const etHour = now.getUTCHours() + etOffset
-  const etMinutes = now.getUTCMinutes()
-  const dayOfWeek = now.getUTCDay()
-  const etTimeMinutes = (etHour < 0 ? etHour + 24 : etHour) * 60 + etMinutes
-  if (dayOfWeek === 0 || dayOfWeek === 6) return NextResponse.json({ skipped: 'weekend' })
-  if (etTimeMinutes < 9 * 60 + 30 || etTimeMinutes >= 16 * 60) return NextResponse.json({ skipped: 'outside_market_hours' })
+  // Use Intl API so DST is handled correctly on Vercel's UTC servers
+  if (!isMarketHours(now)) return NextResponse.json({ skipped: 'outside_market_hours' })
 
   // Respect poll interval
   const lastPoll = await kv.get<string>('poll:lastAt')
@@ -59,8 +54,27 @@ export async function GET(req: Request) {
   }
 }
 
-function isDST(date: Date): boolean {
-  const jan = new Date(date.getFullYear(), 0, 1).getTimezoneOffset()
-  const jul = new Date(date.getFullYear(), 6, 1).getTimezoneOffset()
-  return date.getTimezoneOffset() < Math.max(jan, jul)
+// Determine ET wall-clock time using Intl, so DST is correct regardless of
+// the server's own timezone (Vercel runs in UTC).
+function isMarketHours(date: Date): boolean {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+  const weekday = get('weekday') // e.g. "Mon"
+  let hour = parseInt(get('hour'), 10)
+  if (hour === 24) hour = 0 // Intl can emit "24" at midnight
+  const minute = parseInt(get('minute'), 10)
+
+  if (weekday === 'Sat' || weekday === 'Sun') return false
+
+  const minutesSinceMidnight = hour * 60 + minute
+  const open = 9 * 60 + 30 // 9:30 AM ET
+  const close = 16 * 60 // 4:00 PM ET
+  return minutesSinceMidnight >= open && minutesSinceMidnight < close
 }
